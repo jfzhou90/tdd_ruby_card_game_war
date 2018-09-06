@@ -14,7 +14,6 @@ class WarGame
     ranks.each_with_index do |rank, index|
       @value[rank] = index
     end
-
   end
 
   def start
