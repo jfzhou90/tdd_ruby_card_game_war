@@ -61,4 +61,5 @@ describe WarSocketServer do
   #   make sure the mock client gets appropriate output
   #   make sure the next round isn't played until both clients say they are ready to play
   #   ...
+  it ""
 end
