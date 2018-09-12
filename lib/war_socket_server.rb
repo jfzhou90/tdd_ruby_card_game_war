@@ -1,12 +1,13 @@
 require 'socket'
-require 'war_game'
+require_relative 'war_game'
+require_relative 'war_socket_game_runner'
+require_relative 'war_client'
+
+WELCOME_MESSAGE_1 = 'Welcome. Waiting for another player to join.'.freeze
+WELCOME_MESSAGE_2 = 'Welcome. You are about to go to war.'.freeze
 
 class WarSocketServer
-  attr_reader :players, :games
-  def initialize
-    @players = []
-    @games = []
-  end
+  def initialize; end
 
   def port_number
     3336
@@ -20,30 +21,37 @@ class WarSocketServer
     @server = TCPServer.new(port_number)
   end
 
-  def accept_new_client(player_name = "Random Player")
+  def accept_new_client(player_name = 'Random Player')
     client = @server.accept_nonblock
-    pending_clients.push(client)
-    client.puts(pending_clients.count.odd? ? "Welcome.  Waiting for another player to join." : "Welcome.  You are about to go to war.")
-    # associate player and client
-    players.push(Player.new(player_name, client))
+    player = WarClient.new(client, player_name)
+    pending_clients.push(player)
+    client.puts(pending_clients.count.odd? ? WELCOME_MESSAGE_1 : WELCOME_MESSAGE_2)
+    # puts "#{player_name} joined."
+    client
   rescue IO::WaitReadable, Errno::EINTR
-    puts "No client to accept"
+    # puts 'No client to accept'
   end
 
   def create_game_if_possible
-    if pending_clients.count > 1
-      game = WarGame.new
-      games.push(game)
-      games_to_humans[game] = pending_clients.shift(2)
-      game.start
-      inform_players_of_hand(game)
-    end
+    return unless pending_clients.count > 1
+
+    game = WarGame.new(pending_clients[0].name, pending_clients[1].name)
+    games.push(game)
+    games_to_humans[game] = pending_clients.shift(2)
+    game.start
+    inform_players_of_hand(game)
+    game
   end
 
   def run_game(game)
-    # spawn a thread
-    game_runner = WarSocketGameRunner.new(game, games_to_humans(game))
+    game_runner = WarSocketGameRunner.new(game, games_to_humans[game])
     game_runner.start
+    Thread.start do
+      until game_runner.finished?
+        game_runner.capture_output
+        game_runner.play_round_if_possible
+      end
+    end
   end
 
   def stop
@@ -54,8 +62,8 @@ class WarSocketServer
 
   def inform_players_of_hand(game)
     humans = games_to_humans[game]
-    humans[0].puts("You have #{game.player1.cards_left} cards left")
-    humans[1].puts("You have #{game.player2.cards_left} cards left")
+    humans[0].send_message("You have #{game.player1.cards_count} cards left")
+    humans[1].send_message("You have #{game.player2.cards_count} cards left")
   end
 
   def pending_clients

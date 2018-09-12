@@ -9,7 +9,7 @@ class Card
     "#{@rank} of #{@suit}"
   end
 
-  def == other
-    self.rank == other.rank && self.suit == other.suit
+  def ==(other)
+    rank == other.rank && suit == other.suit
   end
 end
